@@ -2,7 +2,7 @@ from indicators.base_indicator import BaseIndicator
 import pandas as pd
 import numpy as np
 
-class ADXIndicator(BaseIndicator):
+class ADXHybridIndicator(BaseIndicator):
     def __init__(self, symbol, timeframe, params):
         super().__init__(symbol, timeframe, params)
         self.period = params.get('period', 14)
@@ -12,110 +12,121 @@ class ADXIndicator(BaseIndicator):
         self.macd_slow = params.get('macd_slow', 26)
         self.macd_signal = params.get('macd_signal', 9)
 
+    # ================== تابع RMA (Wilder’s) ==================
+    def rma(self, series, period):
+        return series.ewm(alpha=1/period, adjust=False).mean()
+
     def calculate(self, df):
         df = df.copy()
-        df.columns = [col.lower() for col in df.columns]
 
-        # === محاسبه ADX ===
+        # ===== مرحله ۱: محاسبه ADX و DI‌ها =====
+        if 'ADX' not in df.columns:
+            self._calculate_adx(df)
+        if f'EMA_{self.ema_period}' not in df.columns:
+            df[f'EMA_{self.ema_period}'] = df['close'].ewm(span=self.ema_period, adjust=False).mean()
+        if 'RSI' not in df.columns:
+            self._calculate_rsi(df)
+        if 'MACD' not in df.columns or 'MACD_signal' not in df.columns:
+            self._calculate_macd(df)
+        if 'volume_ma' not in df.columns:
+            df['volume_ma'] = df['volume'].rolling(window=self.period).mean()
+
+        # ===== مرحله ۲: سیگنال پایه بر اساس کراس DI =====
+        def base_signal(row):
+            if row['ADX'] > 25:
+                if row['diplusn'] > row['diminusn'] and row['close'] > row[f'EMA_{self.ema_period}']:
+                    return 'Buy'
+                elif row['diminusn'] > row['diplusn'] and row['close'] < row[f'EMA_{self.ema_period}']:
+                    return 'Sell'
+            return 'Hold'
+
+        df['base_sig'] = df.apply(base_signal, axis=1)
+
+        # ===== مرحله ۳: فیلتر و امتیازدهی =====
+        def hybrid_signal(row):
+            reasons = []
+            score = 0
+            signal = row['base_sig']
+
+            # ADX قوی
+            if row['ADX'] > 35:
+                score += 1
+                reasons.append("ADX > 35")
+            if row['ADX'] > 60:
+                reasons.append("⚠️ ADX بسیار بالا (اشباع روند)")
+
+            # حجم
+            if row['volume'] > row['volume_ma']:
+                score += 1
+                reasons.append("حجم بالای میانگین")
+
+            # RSI
+            if row['RSI'] > 70:
+                score -= 1
+                reasons.append("RSI اشباع خرید")
+            elif row['RSI'] < 30:
+                score -= 1
+                reasons.append("RSI اشباع فروش")
+
+            # MACD
+            if signal == 'Buy' and row['MACD'] > row['MACD_signal']:
+                score += 1
+                reasons.append("کراس مثبت MACD")
+            elif signal == 'Sell' and row['MACD'] < row['MACD_signal']:
+                score += 1
+                reasons.append("کراس منفی MACD")
+
+            # تصمیم نهایی
+            if score <= 0:
+                signal = 'Hold'
+
+            return pd.Series([signal, ' | '.join(reasons), score])
+
+        df[['sig_final', 'sig_reason', 'score']] = df.apply(hybrid_signal, axis=1)
+
+        # رنگ منطقه برای نمایش مثل Pine Script
+        df['zone'] = np.where(df['diplusn'] > df['diminusn'], 'green', 'red')
+
+        # حذف NaN‌های اولیه
+        df.fillna(0, inplace=True)
+
+        return df[['time', 'ADX', 'diplusn', 'diminusn', f'EMA_{self.ema_period}',
+                   'RSI', 'MACD', 'MACD_signal', 'zone', 'sig_final', 'sig_reason', 'score']]
+
+    # ================== زیر توابع محاسباتی ==================
+    def _calculate_adx(self, df):
         high, low, close = df['high'], df['low'], df['close']
-        period = self.period
 
-        df['tr'] = np.maximum.reduce([
+        tr = np.maximum.reduce([
             high - low,
             (high - close.shift()).abs(),
             (low - close.shift()).abs()
         ])
+        dm_plus = np.where((high - high.shift()) > (low.shift() - low),
+                           np.maximum(high - high.shift(), 0), 0)
+        dm_minus = np.where((low.shift() - low) > (high - high.shift()),
+                            np.maximum(low.shift() - low, 0), 0)
 
-        df['dmplus'] = np.where(
-            (high - high.shift()) > (low.shift() - low),
-            np.maximum(high - high.shift(), 0),
-            0
-        )
+        trn = self.rma(pd.Series(tr), self.period)
+        dm_plus_n = self.rma(pd.Series(dm_plus), self.period)
+        dm_minus_n = self.rma(pd.Series(dm_minus), self.period)
 
-        df['dmminus'] = np.where(
-            (low.shift() - low) > (high - high.shift()),
-            np.maximum(low.shift() - low, 0),
-            0
-        )
-
-        trn = df['tr'].ewm(alpha=1/period, adjust=False).mean()
-        dmplusn = df['dmplus'].ewm(alpha=1/period, adjust=False).mean()
-        dmminusn = df['dmminus'].ewm(alpha=1/period, adjust=False).mean()
-
-        df['diplusn'] = 100 * (dmplusn / trn).replace([np.inf, -np.inf], np.nan)
-        df['diminusn'] = 100 * (dmminusn / trn).replace([np.inf, -np.inf], np.nan)
-
+        df['diplusn'] = 100 * (dm_plus_n / trn).replace([np.inf, -np.inf], np.nan)
+        df['diminusn'] = 100 * (dm_minus_n / trn).replace([np.inf, -np.inf], np.nan)
         dx = 100 * np.abs(df['diplusn'] - df['diminusn']) / (df['diplusn'] + df['diminusn']).replace(0, np.nan)
-        df['adx'] = dx.ewm(alpha=1/period, adjust=False).mean()
+        df['ADX'] = self.rma(dx, self.period)
 
-        # === EMA ===
-        df[f"ema_{self.ema_period}"] = close.ewm(span=self.ema_period, adjust=False).mean()
-
-        # === Volume MA ===
-        if 'volume' not in df.columns:
-            df['volume'] = 0
-        df['volume_ma'] = df['volume'].rolling(window=period).mean()
-
-        # === RSI ===
-        delta = close.diff()
+    def _calculate_rsi(self, df):
+        delta = df['close'].diff()
         gain = delta.clip(lower=0)
         loss = -delta.clip(upper=0)
         avg_gain = gain.rolling(self.rsi_period).mean()
         avg_loss = loss.rolling(self.rsi_period).mean()
         rs = avg_gain / avg_loss
-        df['rsi'] = 100 - (100 / (1 + rs))
+        df['RSI'] = 100 - (100 / (1 + rs))
 
-        # === MACD ===
-        ema_fast = close.ewm(span=self.macd_fast, adjust=False).mean()
-        ema_slow = close.ewm(span=self.macd_slow, adjust=False).mean()
-        df['macd'] = ema_fast - ema_slow
-        df['macd_signal'] = df['macd'].ewm(span=self.macd_signal, adjust=False).mean()
-
-        # === Signal Generation ===
-        def full_signal(row):
-            reason = []
-            signal = "Hold"
-            score = 0
-
-            if pd.notna(row['adx']) and row['adx'] > 35:
-                if row['diplusn'] > row['diminusn']:
-                    signal = 'Buy'
-                    score += 1
-                    reason.append("DI+ > DI-")
-                elif row['diminusn'] > row['diplusn']:
-                    signal = 'Sell'
-                    score -= 1
-                    reason.append("DI- > DI+")
-
-                reason.append("ADX > 25")
-
-            if row['adx'] > 60:
-                reason.append("⚠️ ADX بسیار بالا (اشباع روند)")
-
-            if row['close'] > row[f"ema_{self.ema_period}"]:
-                reason.append("قیمت بالای EMA")
-            else:
-                reason.append("قیمت زیر EMA")
-
-            if row['volume'] > row['volume_ma']:
-                reason.append("حجم بالای میانگین")
-
-            if row['rsi'] > 70:
-                reason.append("RSI در اشباع خرید")
-            elif row['rsi'] < 30:
-                reason.append("RSI در اشباع فروش")
-
-            if signal == "Buy" and row['macd'] > row['macd_signal']:
-                score += 1
-                reason.append("کراس مثبت MACD")
-            elif signal == "Sell" and row['macd'] < row['macd_signal']:
-                score -= 1
-                reason.append("کراس منفی MACD")
-
-            return pd.Series([signal, ' | '.join(reason), score])
-
-        result = df.apply(full_signal, axis=1)
-        df[['sig_adx', 'sig_reason', 'score']] = result
-
-        # === ستون‌های خروجی ===
-        return df[['time', 'adx', 'diplusn', 'diminusn', 'sig_adx', 'sig_reason', 'score']]
+    def _calculate_macd(self, df):
+        ema_fast = df['close'].ewm(span=self.macd_fast, adjust=False).mean()
+        ema_slow = df['close'].ewm(span=self.macd_slow, adjust=False).mean()
+        df['MACD'] = ema_fast - ema_slow
+        df['MACD_signal'] = df['MACD'].ewm(span=self.macd_signal, adjust=False).mean()

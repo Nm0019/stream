@@ -1,144 +1,148 @@
 import pandas as pd
 import numpy as np
-from scipy.signal import argrelextrema
 from indicators.base_indicator import BaseIndicator
 
 class RSIIndicator(BaseIndicator):
+    def __init__(self, symbol, timeframe, params):
+        super().__init__(symbol, timeframe, params)
+        
+        # پارامترهای RSI
+        self.rsi_length = params.get("rsi_length", 14)
+        self.smooth_length = params.get("smooth_length", 21)
+        self.trend_factor = params.get("trend_factor", 0.8)
+        self.atr_length = params.get("atr_length", 10)
+        self.source = params.get("source", "close")
+        self.smooth_rsi = params.get("smooth_rsi", False)
+        self.ma_lengths = params.get("ma_lengths", {"SMA":14,"EMA":14,"RMA":14,"WMA":14,"HMA":14,"VWMA":14})
+
+    # تابع محاسبه MA روی سری
+    def calculate_ma(self, series: pd.Series, length: int, ma_type: str, df=None):
+        if ma_type == "SMA":
+            return series.rolling(length).mean()
+        elif ma_type == "EMA":
+            return series.ewm(span=length, adjust=False).mean()
+        elif ma_type == "RMA":
+            return series.ewm(alpha=1/length, adjust=False).mean()
+        elif ma_type == "WMA":
+            return series.rolling(length).apply(
+                lambda x: np.dot(x, np.arange(1, length+1))/np.arange(1, length+1).sum(),
+                raw=True
+            )
+        elif ma_type == "HMA":
+            half = int(length/2)
+            wma1 = series.rolling(half).apply(
+                lambda x: np.dot(x, np.arange(1, len(x)+1))/np.arange(1, len(x)+1).sum(),
+                raw=True
+            )
+            wma2 = series.rolling(length).apply(
+                lambda x: np.dot(x, np.arange(1, len(x)+1))/np.arange(1, len(x)+1).sum(),
+                raw=True
+            )
+            return (2*wma1 - wma2).rolling(int(np.sqrt(length))).apply(
+                lambda x: np.dot(x, np.arange(1, len(x)+1))/np.arange(1, len(x)+1).sum(),
+                raw=True
+            )
+        elif ma_type == "VWMA" and df is not None:
+            return (series * df['volume']).rolling(length).sum() / df['volume'].rolling(length).sum()
+        else:
+            return series
+
+    # محاسبه ATR روی سری RSI (مطابق PineScript)
+    def calculate_atr_on_rsi(self, rsi: pd.Series, length: int):
+        highest_high = rsi.rolling(length).max()
+        lowest_low = rsi.rolling(length).min()
+        prev = rsi.shift(1)
+
+        true_range = pd.concat([
+            highest_high - lowest_low,
+            (highest_high - prev).abs(),
+            (lowest_low - prev).abs()
+        ], axis=1).max(axis=1)
+
+        # RMA = EMA با alpha = 1/length
+        return true_range.ewm(alpha=1/length, adjust=False).mean()
+
+    # محاسبه سوپرترند روی RSI
+    def calculate_supertrend(self, factor: float, atr_length: int, rsi: pd.Series):
+        atr = self.calculate_atr_on_rsi(rsi, atr_length)
+
+        upper_band = rsi + factor * atr
+        lower_band = rsi - factor * atr
+
+        supertrend = pd.Series(index=rsi.index, dtype=float)
+        trend_dir = pd.Series(index=rsi.index, dtype=int)
+
+        # مقدار اولیه
+        trend_dir.iloc[0] = 1
+        supertrend.iloc[0] = lower_band.iloc[0]
+
+        # پیمایش
+        for i in range(1, len(rsi)):
+            if pd.isna(atr.iloc[i-1]):
+                trend_dir.iloc[i] = 1
+                supertrend.iloc[i] = lower_band.iloc[i]
+                continue
+
+            prev_st = supertrend.iloc[i-1]
+            prev_up = upper_band.iloc[i-1]
+            prev_lo = lower_band.iloc[i-1]
+
+            if prev_st == prev_up:
+                # اگر سوپرترند قبلی روی upperBand بوده
+                trend_dir.iloc[i] = 1 if rsi.iloc[i] >= upper_band.iloc[i] else -1
+            else:
+                # در غیر این صورت
+                trend_dir.iloc[i] = -1 if rsi.iloc[i] <= lower_band.iloc[i] else 1
+
+            # نگاشت باند درست
+            if trend_dir.iloc[i] == 1:
+                supertrend.iloc[i] = lower_band.iloc[i]
+            else:
+                supertrend.iloc[i] = upper_band.iloc[i]
+
+        trend_dir = trend_dir.fillna(1).astype(int)
+        supertrend = supertrend.fillna(method='bfill').fillna(method='ffill')
+
+        return supertrend, trend_dir
+
+    # محاسبه اصلی
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
-        # گرفتن پارامترها
-        n = self.params.get("period", 14)
-        short_window = self.params.get("sma_short", 20)
-        long_window = self.params.get("sma_long", 50)
-        order = self.params.get("divergence_window", 5)
-
-        rsi_weight = self.params.get("rsi_weight", 1)
-        trend_weight = self.params.get("trend_weight", 1)
-        div_weight = self.params.get("divergence_weight", 1)
-
         df = df.copy()
 
-        # ===== محاسبه RSI =====
-        delta = df["close"].diff()
-        up = delta.clip(lower=0)
-        down = -delta.clip(upper=0)
+        # محاسبه RSI
+        delta = df[self.source].diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
 
-        avg_gain = up.rolling(window=n).mean()
-        avg_loss = down.rolling(window=n).mean()
-        rs = avg_gain / avg_loss
-        df["RSI"] = 100 - (100 / (1 + rs))
+        avg_gain = gain.ewm(alpha=1/self.rsi_length, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=1/self.rsi_length, adjust=False).mean()
+        rs = avg_gain / avg_loss.replace(0, np.nan)
 
-        # ===== تبدیل RSI به امتیاز =====
-        df["sig_RSI"] = df["RSI"].apply(self._signal_rsi_weight)
+        rsi = 100 - 100/(1 + rs)
+        rsi.fillna(50, inplace=True)
 
-        # ===== محاسبه SMA =====
-        df["SMA_short"] = df["close"].rolling(window=short_window).mean()
-        df["SMA_long"] = df["close"].rolling(window=long_window).mean()
+        if self.smooth_rsi:
+            rsi = rsi.ewm(span=self.smooth_length, adjust=False).mean()
 
-        # ===== محاسبه امتیاز اولیه =====
-        def score_row(row):
-            score = 0
-            score += row["sig_RSI"] * rsi_weight
-            if row["SMA_short"] > row["SMA_long"]:
-                score -= trend_weight
-            else:
-                score += trend_weight
-            return score
+        df['RSI'] = rsi
 
-        df["score_RSI"] = df.apply(score_row, axis=1)
+        # MAهای مختلف روی RSI
+        for ma_type, length in self.ma_lengths.items():
+            df[f'RSI_MA_{ma_type}'] = self.calculate_ma(df['RSI'], length, ma_type, df)
 
-        # ===== تشخیص واگرایی‌ها =====
-        df["has_bull_div"] = False
-        df["has_bear_div"] = False
-        divergences = self._detect_divergences(df, order)
-
-        for idx, div_type in divergences:
-            if idx < len(df):
-                if "Bullish" in div_type:
-                    df.at[idx, "score_RSI"] += div_weight
-                    df.at[idx, "has_bull_div"] = True
-                elif "Bearish" in div_type:
-                    df.at[idx, "score_RSI"] -= div_weight
-                    df.at[idx, "has_bear_div"] = True
-
-        # ===== تصمیم نهایی سیگنال =====
-        df["signal_RSI"] = df.apply(
-            lambda row: self._final_signal(
-                score=row["score_RSI"],
-                sig_rsi=row["sig_RSI"],
-                has_bull_div=row["has_bull_div"],
-                has_bear_div=row["has_bear_div"],
-                sma_short=row["SMA_short"],
-                sma_long=row["SMA_long"]
-            ),
-            axis=1
+        # سوپرترند روی RSI
+        df['RSI_ST'], df['RSI_trend'] = self.calculate_supertrend(
+            self.trend_factor,
+            self.atr_length,
+            df['RSI']
         )
 
-        return df[["RSI", "sig_RSI", "score_RSI", "signal_RSI"]]
+        # سیگنال‌ها
+        df['long_entry'] = (df['RSI'] > df['RSI_ST']) & (df['RSI'].shift(1) <= df['RSI_ST'].shift(1))
+        df['short_entry'] = (df['RSI'] < df['RSI_ST']) & (df['RSI'].shift(1) >= df['RSI_ST'].shift(1))
+        df['long_exit'] = df['short_entry']
+        df['short_exit'] = df['long_entry']
 
-    def _signal_rsi_weight(self, val: float) -> int:
-        if val <= 10:
-            return -3
-        elif val <= 20:
-            return -2
-        elif val <= 30:
-            return -1
-        elif val <= 40:
-            return 0
-        elif val <= 60:
-            return 0
-        elif val <= 70:
-            return 1
-        elif val <= 80:
-            return 2
-        else:
-            return 3
-
-    def _detect_divergences(self, df: pd.DataFrame, order: int = 5) -> list:
-        divergences = []
-
-        # اندیس‌های کف و سقف محلی
-        local_min_idx = argrelextrema(df["close"].values, np.less_equal, order=order)[0]
-        local_max_idx = argrelextrema(df["close"].values, np.greater_equal, order=order)[0]
-
-        # واگرایی مثبت (Bullish): کف پایین‌تر + RSI بالاتر
-        for i in range(1, len(local_min_idx)):
-            idx1, idx2 = local_min_idx[i - 1], local_min_idx[i]
-            if idx2 - idx1 < 3:
-                continue
-            c1, c2 = df["close"].iloc[idx1], df["close"].iloc[idx2]
-            r1, r2 = df["RSI"].iloc[idx1], df["RSI"].iloc[idx2]
-            if c2 < c1 and r2 > r1:
-                divergences.append((idx2, "Bullish Divergence"))
-
-        # واگرایی منفی (Bearish): سقف بالاتر + RSI پایین‌تر
-        for i in range(1, len(local_max_idx)):
-            idx1, idx2 = local_max_idx[i - 1], local_max_idx[i]
-            if idx2 - idx1 < 3:
-                continue
-            c1, c2 = df["close"].iloc[idx1], df["close"].iloc[idx2]
-            r1, r2 = df["RSI"].iloc[idx1], df["RSI"].iloc[idx2]
-            if c2 > c1 and r2 < r1:
-                divergences.append((idx2, "Bearish Divergence"))
-
-        return divergences
-
-    def _final_signal(self, score, sig_rsi, has_bull_div, has_bear_div, sma_short, sma_long):
-        # سیگنال خرید قوی
-        if (
-            sig_rsi >= 1 and
-            sma_short > sma_long and
-            
-            score >= 2
-        ):
-            return 1 #"Buy"
-
-        # سیگنال فروش قوی
-        if (
-            sig_rsi <= -1 and
-            sma_short < sma_long and
-            
-            score <= -2
-        ):
-            return -1 #"Sell"
-
-        return 0  #"Neutral"
+        cols = ['time', 'RSI', 'RSI_ST', 'RSI_trend', 'long_entry', 'short_entry', 'long_exit', 'short_exit']
+        ma_cols = [f'RSI_MA_{ma}' for ma in self.ma_lengths.keys()]
+        return df[cols + ma_cols]

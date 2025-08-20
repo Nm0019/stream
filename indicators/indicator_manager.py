@@ -5,8 +5,9 @@ import sqlite3
 
 from indicators.inds.rsi import RSIIndicator
 from indicators.inds.macd import MACDIndicator
-from indicators.inds.adx import ADXIndicator
-from indicators.inds.ema import EMAIndicator
+from indicators.inds.adx import ADXHybridIndicator
+from indicators.inds.ema import TripleEMAIndicator
+from indicators.inds.atr import ATRIndicator
 from database.db_operations import fetch_recent_data, connect, get_table_name
 
 
@@ -45,9 +46,11 @@ def calculate_and_store_indicators(symbol: str, timeframe: str):
             "divergence_weight": 1
         }),
         MACDIndicator(symbol, timeframe, params={
-            "fast": 12, "slow": 26, "signal": 9
+            "fast_period": 12,
+              "slow_period": 26,
+                "signal_period": 9
         }),
-        ADXIndicator(symbol, timeframe, params={
+        ADXHybridIndicator(symbol, timeframe, params={
             "period": 14,
             "ema_period": 50,
             "rsi_period": 14,
@@ -55,7 +58,14 @@ def calculate_and_store_indicators(symbol: str, timeframe: str):
             "macd_slow": 26,
             "macd_signal": 9
         }),
-        EMAIndicator(symbol, timeframe, params={"period": 50})
+        TripleEMAIndicator(symbol, timeframe, params={
+            "short_period": 9,
+            "mid_period": 50,
+            "long_period": 200}),
+        ATRIndicator(symbol, timeframe, params= {
+            "nday": 14,
+            "stopLoss": 2
+        })
     ]
 
     # اجرای محاسبات و ذخیره نتایج در حافظه
