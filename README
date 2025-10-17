@@ -1,131 +1,138 @@
-�
-� Real-Time Trading Analytics Dashboard
- A professional, full-featured Streamlit web app for real-time financial market analysis — built with Python,
- MetaTrader 5, SQLite, and Plotly. This project demonstrates strong foundations in data engineering,
- visualization, and technical analysis automation.
- 🚀 Features
- • 
-• 
-• 
-• 
-• 
-• 
-Real-time data fetch from MetaTrader5 API
- Symbol-level SQLite database for OHLCV data storage
- Automated indicator pipeline (RSI, MACD, ATR, ADX, Triple-EMA)
- Price Action analysis using ATR-adaptive swing detection and channel recognition
- Interactive visualization with Plotly (multi-tab dashboard)
- Streamlit-based UI for easy exploration and analysis
- 🧱 Project Architecture
- MetaTrader5  →  Data Fetcher  →  SQLite DB  →  Indicator Manager  →  Streamlit 
-Visualization
- Key Modules
- • 
-• 
-• 
-• 
-• 
-mt5_connector/ → Connection and data fetching from MT5
- database/ → SQLite operations (save, update, retrieve)
- analysis/ → Indicator calculations and price action logic
- visualization/ → Plotly chart creation
- app.py → Streamlit front-end entry point
- 🧩 How to Run Locally
- 1
- ️
- ⃣ Clone the Repository
- git clone https://github.com/<your-username>/stream-master.git
- cd stream-master
- 1
-2
- ️
- ⃣ Create Virtual Environment
- python-m venv .venv
- source .venv/bin/activate # or .venv\Scripts\activate on Windows
- 3
- ️
- ⃣ Install Requirements
- pip install-r requirements.txt
- 4
- ️
- ⃣ Setup Environment Variables
- Create a file named 
-.env in the project root with: 
+📊 Streamlit Trading Analytics Dashboard
+<p align="center"> <img src="assets/Screenshot-2025-10-17-121510.png" width="90%" alt="Dashboard Main Preview"> </p>
+
+A real-time trading analytics dashboard built with Python, Streamlit, and SQLite, integrating technical indicators and price-action logic to visualize market structure, volatility, and trend strength.
+Developed by Mohammad Naderi, based in Dubai, UAE.
+
+🚀 Key Features
+
+Live Data Fetching from MetaTrader 5 API
+
+Automatic Demo Mode: if MT5 is unavailable, the app loads data directly from local SQLite database
+
+Symbol-level SQLite Storage for OHLCV data
+
+Modular Indicator Engine: RSI, MACD, ATR, ADX, Triple EMA
+
+Price Action Detection: adaptive swing points, structure labels (HH / HL / LH / LL), and channel recognition
+
+Interactive Plotly Charts across Streamlit tabs
+
+Optimized UI Design for both trading and data analytics
+
+🖼️ Dashboard Screenshots
+<p align="center"> <img src="assets/Screenshot-2025-10-17-122035.png" width="45%" alt="Price Action Tab"> <img src="assets/Screenshot-2025-10-17-122103.png" width="45%" alt="ATR Dashboard"><br><br> <img src="assets/Screenshot-2025-10-17-122115.png" width="45%" alt="EMA and ADX Charts"> <img src="assets/Screenshot-2025-10-17-122127.png" width="45%" alt="MACD Tab"><br><br> <img src="assets/Screenshot-2025-10-17-122147.png" width="60%" alt="RSI Tab"> </p>
+
+Each tab displays a different technical insight — from volatility analysis to price action and trend strength.
+
+🧱 Architecture Overview
+MetaTrader 5  →  Data Fetcher  →  SQLite DB  →  Indicator Manager  →  Streamlit Visualization
+
+Core Modules
+Folder	Description
+mt5_connector/	Fetches OHLCV data from MetaTrader 5
+database/	Handles SQLite operations
+analysis/	Contains technical indicator & price-action calculations
+visualization/	Creates Plotly visualizations for Streamlit
+app.py	Streamlit front-end (Live & Demo modes)
+run_indicators_launcher.py	Runs automated indicator updates
+⚙️ Installation & Usage
+1️⃣ Clone the Repository
+git clone https://github.com/Nm0019/stream.git
+cd stream
+
+2️⃣ Create a Virtual Environment
+python -m venv .venv
+source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+
+3️⃣ Install Requirements
+pip install -r requirements.txt
+
+4️⃣ Configure MT5 (Optional)
+
+Create a .env file:
+
 MT5_LOGIN=your_login
- MT5_PASSWORD=your_password
- MT5_SERVER=your_server
- MT5_PATH=your_mt5_path
- (Use 
-.env.example as a reference.)
- 5
- ️
- ⃣ Run the App
- streamlit run app.py
- 🧠 Demo Mode (No MT5 Required)
- If you don’t have access to MetaTrader5, use a sample CSV dataset instead: 
-python scripts/create_sample_data.py
- streamlit run app.py----demo
- This will load example data (e.g., BTCUSD-H1.csv) and let you explore the interface fully.
- 🧮 Example Features
- 🔸 Indicators Implemented
- • 
-RSI (Relative Strength Index)
- 2
-• 
-• 
-• 
-• 
-MACD (Moving Average Convergence Divergence)
- ATR (Average True Range)
- ADX (Average Directional Index)
- EMA (Triple Exponential Moving Average)
- 🔸 Price Action Analytics
- • 
-• 
-• 
-ATR-adaptive swing point detection
- HH/HL/LH/LL structure labeling
- Automatic channel detection using regression fitting
- 🔸 Visualization
- • 
-• 
-• 
-Multi-tab dashboard for: RSI, MACD, ATR, ADX, and Price Action
- Candlestick charts with overlay indicators
- Real-time and historical data view
- 🧩 Tech Stack
- • 
-• 
-• 
-• 
-Language: Python (3.10+)
- Libraries: Streamlit, Plotly, Pandas, NumPy, SciPy, TensorFlow (optional), MetaTrader5
- Database: SQLite
- Environment:
- .env for configuration
- 🌐 Future Enhancements
- • 
-• 
-• 
-• 
-• 
-[ ] Add Dockerfile for containerized deployment
- [ ] Add multi-language UI toggle (EN / FA)
- [ ] Integrate Streamlit Cloud demo
- [ ] Add unit tests (pytest)
- [ ] Enhance logging and error handling
- 🧾 Author
- Mohammad Naderi – Python Developer & Data Enthusiast
- 📍 Dubai, UAE
- 🔗 
-GitHub | 
-LinkedIn | ✉️ your@email.com
- 🏆 Resume Description Example
- Built a real-time trading analytics dashboard using Streamlit, MT5, and SQLite. Implemented
- modular technical indicators (RSI, MACD, ATR, ADX, EMA) and adaptive price-action algorithms
- 3
-for swing detection and channel analysis. Designed interactive Plotly visualizations to support
- rapid market insights.
- 📎 License
- MIT License — free for educational and professional demonstration purposes.
- 4
+MT5_PASSWORD=your_password
+MT5_SERVER=your_server
+MT5_PATH=your_mt5_path
+
+5️⃣ Run the App
+streamlit run app.py
+
+
+💡 If MT5 is unavailable, the app will automatically switch to Demo Mode using the local database.
+
+🧮 Indicators Included
+
+RSI – Relative Strength Index
+
+MACD – Moving Average Convergence Divergence
+
+ATR – Average True Range
+
+ADX – Average Directional Index
+
+EMA (Triple) – Short / Medium / Long Exponential Moving Averages
+
+🧰 Tech Stack
+Category	Technologies
+Language	Python 3.10+
+Framework	Streamlit
+Libraries	Plotly, Pandas, NumPy, SciPy, MetaTrader5, python-dotenv
+Database	SQLite
+Visualization	Plotly
+Environment	Streamlit UI + .ENV configuration
+🧠 Highlights
+
+Modular indicator system (easy to extend)
+
+Offline demo-ready fallback mode
+
+Structured, maintainable OOP codebase
+
+Intuitive charts for market insight visualization
+
+Optimized layout for readability and performance
+
+🧩 Future Roadmap
+
+ Docker deployment for Streamlit Cloud
+
+ Multilingual UI (EN / FA)
+
+ Pytest-based testing suite
+
+ Extended Indicator Library
+
+ Live multi-symbol comparison
+
+👤 Author
+
+Mohammad Naderi
+Python Developer & Data Analyst
+📍 Dubai, UAE
+
+📧 Email: whiteramtehran@gmail.com
+
+💬 WhatsApp: +971 583 071 091
+
+🏷️ License
+
+MIT License — free for educational and professional demonstration purposes.
+
+🌟 Summary for Recruiters
+
+This project demonstrates:
+
+Strong command of Python, OOP, and modular data design
+
+End-to-end data flow (API → DB → Indicators → Visualization)
+
+Hands-on experience in financial and technical analysis
+
+Practical dashboard development with Streamlit and Plotly
+
+✅ Open to Junior Python / Data / Streamlit Developer roles in Dubai, UAE.
+
+📌 If you’re a recruiter or company representative, feel free to reach out via email or WhatsApp for portfolio verification or collaboration.
