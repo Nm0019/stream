@@ -3,6 +3,7 @@
 import streamlit as st
 import pandas as pd
 import subprocess
+import MetaTrader5 as mt5
 
 from mt5_connector.historical_fetcher import download_btcusd
 from database.db_operations import fetch_recent_data
@@ -10,9 +11,7 @@ from analysis.price_action.price_action import SwingPointDetector
 from analysis.channel_detector import PriceChannelDetector
 from visualization.charts import (
     plot_price_action_chart,
-    plot_atr_chart,
-    plot_atr_momentum_chart,
-    show_volatility_info,
+    show_atr_dashboard,
     plot_triple_ema_with_score,
     plot_adx_chart,
     plot_macd_chart,
@@ -25,17 +24,34 @@ st.title("🔍 BTCUSD Price Action Viewer")
 symbol = "BTCUSD"
 timeframe = "H4"
 
+# ===========================
+# 🔸 بررسی اتصال به متاتریدر
+# ===========================
+is_connect = mt5.initialize()
+if is_connect:
+    st.success("✅ اتصال به متاتریدر برقرار شد")
+    download_btcusd()
+else:
+    st.warning("⚠️ MetaTrader 5 در دسترس نیست — اجرای نسخه دمو با دیتابیس محلی")
 # دانلود داده‌ها
-download_btcusd()
+# download_btcusd()
 
+# اجرای اندیکاتورها (در هر حالت)
 with st.spinner("در حال اجرای اندیکاتورها..."):
     subprocess.run(["python", "run_indicators_launcher.py"])
+
+# ===========================
+# 🔸 دریافت داده (واقعی یا دمو)
+# =========================
 
 df = fetch_recent_data(symbol, timeframe)
 
 if df.empty:
-    st.warning("داده‌ای برای نمایش وجود ندارد.")
+    st.error("❌ داده‌ای برای نمایش وجود ندارد (حتی در حالت دمو).")
     st.stop()
+# ===========================
+# 🔸 ادامه روند تحلیل و رسم چارت
+# ===========================
 
 # محدود کردن حجم داده برای رسم سریع‌تر
 MAX_ROWS = 5000
@@ -60,23 +76,23 @@ st.plotly_chart(chart, use_container_width=True)
 # تب‌ها برای نمایش مرتب چارت‌ها
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Price Action", "ATR","EMA & ADX","MACD","RSI"])
 
-with tab1:
-    show_volatility_info(df)
+# with tab1:
+    # show_volatility_info(df)
     # chart = plot_price_action_chart(result_df, channels=channels, title=f"{symbol} [{timeframe}] - Price Action")
     # st.plotly_chart(chart, use_container_width=True)
 
 with tab2:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("📊 نوسان فعلی قیمت ")
-            atr_chart = plot_atr_chart(df)
-            st.plotly_chart(atr_chart, use_container_width=True)
+        # col1, col2 = st.columns(2)
+        # with col1:
+        #     st.subheader("📊 نوسان فعلی قیمت ")
+        #     atr_chart = plot_atr_chart(df)
+        #     st.plotly_chart(atr_chart, use_container_width=True)
         
-        with col2:
-            st.subheader("⚡   افزایش یا کاهش قدرت نوسان")
-            atr_momentum_chart = plot_atr_momentum_chart(df)
-            st.plotly_chart(atr_momentum_chart, use_container_width=True)
-
+        # with col2:
+        #     st.subheader("⚡   افزایش یا کاهش قدرت نوسان")
+        #     atr_momentum_chart = plot_atr_momentum_chart(df)
+        #     st.plotly_chart(atr_momentum_chart, use_container_width=True)
+        show_atr_dashboard(df)
 with tab3:
     try:
         figEMA = plot_triple_ema_with_score(df, title=f"Triple EMA - {symbol} ({timeframe})")
