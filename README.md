@@ -23,7 +23,7 @@ Interactive Plotly Charts across Streamlit tabs
 Optimized UI Design for both trading and data analytics
 
 🖼️ Dashboard Screenshots
-<p align="center"> <img src="assets/Screenshot-2025-10-17-122035.png" width="45%" alt="Price Action Tab"> <img src="assets/Screenshot-2025-10-17-122103.png" width="45%" alt="ATR Dashboard"><br><br> <img src="assets/Screenshot-2025-10-17-122115.png" width="45%" alt="EMA and ADX Charts"> <img src="assets/Screenshot-2025-10-17-122127.png" width="45%" alt="MACD Tab"><br><br> <img src="assets/Screenshot-2025-10-17-122147.png" width="60%" alt="RSI Tab"> </p>
+<p align="center"> <img src="assets/Screenshot 2025-10-17 122035" width="45%" alt="Price Action Tab"> <img src="assets/Screenshot 2025-10-17 122103" width="45%" alt="ATR Dashboard"><br><br> <img src="assets/Screenshot 2025-10-17 122115.png" width="45%" alt="EMA and ADX Charts"> <img src="assets/Screenshot 2025-10-17 122127" width="45%" alt="MACD Tab"><br><br> <img src="assets/Screenshot-2025-10-17 122147.png" width="60%" alt="RSI Tab"> </p>
 
 Each tab displays a different technical insight — from volatility analysis to price action and trend strength.
 
