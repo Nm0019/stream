@@ -2,9 +2,9 @@ import MetaTrader5 as mt5
 from MetaTrader5 import TIMEFRAME_M5
 from datetime import timedelta
 
-MT5_LOGIN = 90488412
-MT5_PASSWORD = 'Nm001970@'
-MT5_SERVER = 'LiteFinance-MT5-Demo'
+MT5_LOGIN = 
+MT5_PASSWORD = ''
+MT5_SERVER = ''
 
 TIMEFRAME = TIMEFRAME_M5
 HIST_CANDLES = 1000
