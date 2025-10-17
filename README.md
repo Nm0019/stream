@@ -1,6 +1,6 @@
 📊 Streamlit Trading Analytics Dashboard
 <p align="center">
-  <img src="assets/Screenshot-2025-10-17-121510.png" width="90%" alt="Dashboard Main Preview">
+  <img src="assets/Screenshot 2025-10-17 121510.png" width="90%" alt="Dashboard Main Preview">
 </p>
 
 A real-time trading analytics dashboard built with Python, Streamlit, and SQLite, integrating technical indicators and price-action logic to visualize market structure, volatility, and trend strength.
